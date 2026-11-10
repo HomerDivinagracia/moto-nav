@@ -95,6 +95,7 @@
           </div>
         </div>
         <div id="avoid-notice">&#10003; Route avoids EDSA &amp; Commonwealth</div>
+        <button id="start-nav-btn" onclick="startNavigation()">&#9654; Start Navigation</button>
       </div>
 
       <!-- Turn-by-turn -->
@@ -108,6 +109,19 @@
     <!-- MAP -->
     <div id="map"></div>
 
+  </div>
+
+  <!-- Navigation panel (fixed over map) -->
+  <div id="nav-panel" class="hidden">
+    <div id="nav-row-main">
+      <div id="nav-turn-icon">&#8593;</div>
+      <div id="nav-instruction">Follow route</div>
+      <div id="nav-turn-dist">—</div>
+    </div>
+    <div id="nav-row-sub">
+      <span id="nav-remaining-text">—</span>
+      <button id="nav-stop-btn" onclick="stopNavigation()">&#10005;&nbsp;Stop</button>
+    </div>
   </div>
 
   <!-- Toast -->

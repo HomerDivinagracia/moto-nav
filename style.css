@@ -319,6 +319,22 @@ body {
   border: 1px solid rgba(0,230,118,0.12);
 }
 
+#start-nav-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid #ff6d00;
+  color: #ff6d00;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 10px;
+  transition: background 0.15s, color 0.15s;
+}
+
+#start-nav-btn:hover { background: rgba(255,109,0,0.1); }
+
 /* ── Directions ───────────────────────────── */
 
 #directions {
@@ -349,9 +365,16 @@ body {
   border-radius: 6px;
   font-size: 12.5px;
   transition: background 0.1s;
+  cursor: pointer;
 }
 
 #steps-list li:hover { background: #1c1c1c; }
+
+#steps-list li.step-active {
+  background: rgba(255, 109, 0, 0.1);
+  border-left: 3px solid #ff6d00;
+  padding-left: 5px;
+}
 
 .step-icon {
   font-size: 13px;
@@ -560,6 +583,106 @@ body {
 
 .leaflet-control-attribution a { color: #666 !important; }
 
+/* ── Navigation panel ─────────────────────── */
+
+#nav-panel {
+  position: fixed;
+  bottom: 0;
+  left: 320px; /* skip the sidebar on desktop */
+  right: 0;
+  z-index: 10000;
+  background: #111;
+  border-top: 2px solid #ff6d00;
+  padding: 14px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#nav-row-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+#nav-turn-icon {
+  font-size: 26px;
+  flex-shrink: 0;
+  width: 32px;
+  text-align: center;
+  color: #ff6d00;
+}
+
+#nav-instruction {
+  flex: 1;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+}
+
+#nav-turn-dist {
+  font-size: 20px;
+  font-weight: 800;
+  color: #ff6d00;
+  flex-shrink: 0;
+  min-width: 60px;
+  text-align: right;
+}
+
+#nav-row-sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#nav-remaining-text {
+  font-size: 12.5px;
+  color: #888;
+}
+
+#nav-stop-btn {
+  background: rgba(255,68,68,0.1);
+  border: 1px solid #ff4444;
+  color: #ff6666;
+  border-radius: 7px;
+  padding: 6px 16px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#nav-stop-btn:hover { background: rgba(255,68,68,0.2); }
+
+/* ── Nav user dot ─────────────────────────── */
+
+.nav-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(0,120,255,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: navRipple 2s ease-out infinite;
+}
+
+.nav-dot-inner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2979ff;
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 8px rgba(41,121,255,0.6);
+}
+
+@keyframes navRipple {
+  0%   { box-shadow: 0 0 0 0 rgba(41,121,255,0.5); }
+  70%  { box-shadow: 0 0 0 10px rgba(41,121,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(41,121,255,0); }
+}
+
 /* ── Logo actions ─────────────────────────── */
 
 .logo-actions {
@@ -634,6 +757,10 @@ body {
 
   #sidebar-toggle {
     display: block;
+  }
+
+  #nav-panel {
+    left: 0; /* full width on mobile — no sidebar */
   }
 
   /* Larger tap targets */

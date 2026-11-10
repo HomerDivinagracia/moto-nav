@@ -65,6 +65,15 @@ let endCoord   = null;
 let clickMode  = 'start';
 let debounceTimer = null;
 
+let currentSteps      = [];   // extracted from OSRM steps
+let stepHighlightLayer = null;
+let navActive          = false;
+let navWatchId         = null;
+let navStepIdx         = 0;
+let navUserMarker      = null;
+let routeTotalDist     = 0;
+let routeTotalDur      = 0;
+
 // ─────────────────────────────────────────────
 //  BOOT
 // ─────────────────────────────────────────────
@@ -444,15 +453,14 @@ function nearestDetour(lon, lat, candidates) {
 
 function renderRoute(routeData, avoided) {
   if (routeLayer) map.removeLayer(routeLayer);
+  if (stepHighlightLayer) { map.removeLayer(stepHighlightLayer); stepHighlightLayer = null; }
+  if (navActive) stopNavigation();
 
-  // On mobile: collapse the panel so the route is visible right away
   if (window.innerWidth <= 640) {
     document.getElementById('sidebar').classList.add('collapsed');
   }
 
-  // OSRM returns [lon, lat]; Leaflet needs [lat, lon]
   const latLngs = routeData.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-
   routeLayer = L.polyline(latLngs, { color: '#ff6d00', weight: 5, opacity: 0.92 }).addTo(map);
   map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
 
@@ -462,8 +470,19 @@ function renderRoute(routeData, avoided) {
   document.getElementById('route-info').classList.remove('hidden');
 
   const steps = routeData.legs.flatMap(leg => leg.steps);
-  document.getElementById('steps-list').innerHTML = steps.map(step => `
-    <li>
+
+  routeTotalDist = routeData.distance;
+  routeTotalDur  = routeData.duration;
+  currentSteps   = steps.map(step => ({
+    latLngs:  (step.geometry?.coordinates || []).map(([lon, lat]) => [lat, lon]),
+    maneuver: step.maneuver?.location || [0, 0], // [lon, lat] GeoJSON
+    text:     stepText(step),
+    icon:     stepIcon(step.maneuver),
+    dist:     step.distance,
+  }));
+
+  document.getElementById('steps-list').innerHTML = steps.map((step, i) => `
+    <li onclick="highlightStep(${i})">
       <span class="step-icon">${stepIcon(step.maneuver)}</span>
       <span class="step-text">${stepText(step)}</span>
       <span class="step-dist">${fmtDist(step.distance)}</span>
@@ -502,10 +521,132 @@ function stepText(step) {
 }
 
 // ─────────────────────────────────────────────
+//  NAVIGATION
+// ─────────────────────────────────────────────
+
+function highlightStep(idx) {
+  if (stepHighlightLayer) map.removeLayer(stepHighlightLayer);
+
+  const step = currentSteps[idx];
+  if (!step || !step.latLngs.length) return;
+
+  stepHighlightLayer = L.polyline(step.latLngs, {
+    color: '#ffffff', weight: 9, opacity: 0.55,
+  }).addTo(map);
+
+  if (step.latLngs.length >= 2) {
+    map.fitBounds(L.polyline(step.latLngs).getBounds(), { padding: [80, 80], maxZoom: 17 });
+  } else {
+    map.setView(step.latLngs[0], 17);
+  }
+
+  document.querySelectorAll('#steps-list li').forEach((li, i) => {
+    li.classList.toggle('step-active', i === idx);
+  });
+  document.querySelectorAll('#steps-list li')[idx]
+    ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function navUserIcon() {
+  return L.divIcon({
+    html: '<div class="nav-dot"><div class="nav-dot-inner"></div></div>',
+    iconSize: [24, 24], iconAnchor: [12, 12], className: '',
+  });
+}
+
+function startNavigation() {
+  if (!currentSteps.length) { toast('Calculate a route first.', 'error'); return; }
+  if (!navigator.geolocation) { toast('Geolocation not supported by this browser.', 'error'); return; }
+
+  navStepIdx = 0;
+  navActive  = true;
+
+  if (window.innerWidth <= 640) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+
+  document.getElementById('start-nav-btn').classList.add('hidden');
+  document.getElementById('nav-panel').classList.remove('hidden');
+  updateNavPanel(null);
+
+  navWatchId = navigator.geolocation.watchPosition(
+    ({ coords }) => updateNavigation(coords.latitude, coords.longitude),
+    ()           => toast('Navigation: location update failed.', 'error'),
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+  );
+}
+
+function stopNavigation() {
+  if (navWatchId !== null) { navigator.geolocation.clearWatch(navWatchId); navWatchId = null; }
+  if (navUserMarker) { map.removeLayer(navUserMarker); navUserMarker = null; }
+
+  navActive = false;
+  document.getElementById('nav-panel').classList.add('hidden');
+  document.getElementById('start-nav-btn').classList.remove('hidden');
+
+  // Clear step highlight
+  document.querySelectorAll('#steps-list li').forEach(li => li.classList.remove('step-active'));
+}
+
+function updateNavigation(lat, lon) {
+  if (!navActive) return;
+
+  if (navUserMarker) map.removeLayer(navUserMarker);
+  navUserMarker = L.marker([lat, lon], { icon: navUserIcon() }).addTo(map);
+  map.panTo([lat, lon]);
+
+  // Advance step when user is within 25 m of the next maneuver point
+  while (navStepIdx < currentSteps.length - 1) {
+    const [nlon, nlat] = currentSteps[navStepIdx + 1].maneuver;
+    const dist = turf.distance(turf.point([lon, lat]), turf.point([nlon, nlat]), { units: 'meters' });
+    if (dist <= 25) {
+      navStepIdx++;
+      highlightNavStep(navStepIdx);
+    } else break;
+  }
+
+  // Distance to next maneuver
+  let distToTurn = 0;
+  if (navStepIdx < currentSteps.length - 1) {
+    const [nlon, nlat] = currentSteps[navStepIdx + 1].maneuver;
+    distToTurn = turf.distance(turf.point([lon, lat]), turf.point([nlon, nlat]), { units: 'meters' });
+  }
+
+  updateNavPanel(distToTurn);
+}
+
+function updateNavPanel(distToTurn) {
+  const step = currentSteps[navStepIdx] || {};
+  document.getElementById('nav-turn-icon').textContent    = step.icon || '↑';
+  document.getElementById('nav-instruction').textContent  = step.text || 'Follow route';
+  document.getElementById('nav-turn-dist').textContent    =
+    distToTurn != null ? fmtDist(distToTurn) : '—';
+
+  const remaining = currentSteps.slice(navStepIdx).reduce((s, st) => s + st.dist, 0);
+  const remTime   = routeTotalDur > 0
+    ? Math.round((remaining / routeTotalDist) * routeTotalDur)
+    : 0;
+  document.getElementById('nav-remaining-text').textContent =
+    `${fmtDist(remaining)} remaining · ${fmtTime(remTime)}`;
+}
+
+function highlightNavStep(idx) {
+  document.querySelectorAll('#steps-list li').forEach((li, i) => {
+    li.classList.toggle('step-active', i === idx);
+  });
+  document.querySelectorAll('#steps-list li')[idx]
+    ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ─────────────────────────────────────────────
 //  CLEAR
 // ─────────────────────────────────────────────
 
 function clearAll() {
+  if (navActive) stopNavigation();
+  if (stepHighlightLayer) { map.removeLayer(stepHighlightLayer); stepHighlightLayer = null; }
+  currentSteps = [];
+
   [routeLayer, startMarker, endMarker].forEach(l => { if (l) map.removeLayer(l); });
   routeLayer = startMarker = endMarker = null;
   startCoord = endCoord = null;
