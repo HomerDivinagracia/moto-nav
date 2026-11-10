@@ -220,6 +220,12 @@ function bindSidebarToggle() {
   btn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
 }
 
+function openDirections() {
+  document.getElementById('sidebar').classList.remove('collapsed');
+  document.getElementById('directions-fab').classList.add('hidden');
+  document.getElementById('directions').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function bindSearchInput(inputId, suggestionsId, onPick) {
   const input = document.getElementById(inputId);
   const box   = document.getElementById(suggestionsId);
@@ -458,6 +464,7 @@ function renderRoute(routeData, avoided) {
 
   if (window.innerWidth <= 640) {
     document.getElementById('sidebar').classList.add('collapsed');
+    document.getElementById('directions-fab').classList.remove('hidden');
   }
 
   const latLngs = routeData.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
@@ -657,6 +664,7 @@ function clearAll() {
   document.getElementById('end-input').value   = '';
   document.getElementById('route-info').classList.add('hidden');
   document.getElementById('directions').classList.add('hidden');
+  document.getElementById('directions-fab').classList.add('hidden');
   map.setView(METRO_MANILA, DEFAULT_ZOOM);
 }
 
