@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>MotoNav — Metro Manila</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+
+  <div id="app">
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+
+      <div id="logo">
+        <div class="logo-top">
+          <span class="logo-icon">&#127949;</span>
+          <span class="logo-text">MotoNav</span>
+        </div>
+        <small>Skips EDSA &amp; Commonwealth Ave</small>
+      </div>
+
+      <div id="controls">
+        <div class="input-group">
+          <label>From</label>
+          <div class="input-wrapper">
+            <span class="dot start-dot"></span>
+            <input type="text" id="start-input" placeholder="Starting point..." autocomplete="off"/>
+          </div>
+          <div id="start-suggestions" class="suggestions"></div>
+        </div>
+
+        <div class="input-group">
+          <label>To</label>
+          <div class="input-wrapper">
+            <span class="dot end-dot"></span>
+            <input type="text" id="end-input" placeholder="Destination..." autocomplete="off"/>
+          </div>
+          <div id="end-suggestions" class="suggestions"></div>
+        </div>
+
+        <div id="click-hint">
+          <span class="hint-label">Map click will set:</span>
+          <span id="click-mode-badge" class="badge badge-start">START</span>
+        </div>
+
+        <button id="route-btn" onclick="calculateRoute()">
+          <span id="route-btn-text">Get Moto Route</span>
+        </button>
+
+        <button id="clear-btn" onclick="clearAll()">Clear</button>
+      </div>
+
+      <!-- Avoid zone legend -->
+      <div id="legend">
+        <div class="legend-item">
+          <span class="legend-line edsa-line"></span>
+          <span>EDSA (avoided)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line cw-line"></span>
+          <span>Commonwealth Ave (avoided)</span>
+        </div>
+        <div class="legend-item">
+          <span class="legend-line route-line"></span>
+          <span>Your moto route</span>
+        </div>
+      </div>
+
+      <!-- Route summary -->
+      <div id="route-info" class="hidden">
+        <div class="info-cards">
+          <div class="card">
+            <div class="card-label">Distance</div>
+            <div class="card-value" id="distance">—</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Est. Time</div>
+            <div class="card-value" id="duration">—</div>
+          </div>
+        </div>
+        <div id="avoid-notice">&#10003; Route avoids EDSA &amp; Commonwealth</div>
+      </div>
+
+      <!-- Turn-by-turn -->
+      <div id="directions" class="hidden">
+        <h3>Turn-by-turn directions</h3>
+        <ol id="steps-list"></ol>
+      </div>
+
+    </div>
+
+    <!-- MAP -->
+    <div id="map"></div>
+
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

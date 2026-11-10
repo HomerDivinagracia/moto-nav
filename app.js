@@ -1,0 +1,400 @@
+// ─────────────────────────────────────────────
+//  CONSTANTS
+// ─────────────────────────────────────────────
+
+// OSRM — free, no API key, no polygon limits
+const OSRM_URL          = 'https://router.project-osrm.org/route/v1/driving';
+const NOMINATIM_SEARCH  = 'https://nominatim.openstreetmap.org/search';
+const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
+
+const METRO_MANILA = [14.5995, 120.9842];
+const DEFAULT_ZOOM = 12;
+
+// EDSA centerline — [lon, lat]
+const EDSA_LINE = [
+  [120.9838, 14.6553],
+  [121.0014, 14.6604],
+  [121.0145, 14.6522],
+  [121.0238, 14.6447],
+  [121.0260, 14.6305],
+  [121.0400, 14.6238],
+  [121.0527, 14.6155],
+  [121.0607, 14.6017],
+  [121.0574, 14.5848],
+  [121.0520, 14.5789],
+  [121.0427, 14.5730],
+  [121.0442, 14.5629],
+  [121.0344, 14.5553],
+  [121.0276, 14.5484],
+  [121.0200, 14.5403],
+  [121.0038, 14.5312],
+];
+
+// Commonwealth Ave centerline — [lon, lat]
+const COMMONWEALTH_LINE = [
+  [121.0444, 14.6517],
+  [121.0510, 14.6640],
+  [121.0570, 14.6760],
+  [121.0620, 14.6900],
+  [121.0665, 14.7050],
+  [121.0695, 14.7180],
+];
+
+// Bypass waypoints on C5 and other EDSA alternatives
+const EDSA_DETOURS = [
+  [121.0540, 14.6480], // C5 / Mindanao Ave, QC
+  [121.0720, 14.6200], // C5 central QC
+  [121.0890, 14.5848], // C5 / Ortigas, Pasig
+  [121.0750, 14.5420], // C5 / BGC–Taguig
+];
+
+// Bypass waypoints for Commonwealth alternatives
+const CW_DETOURS = [
+  [121.0220, 14.6700], // Quirino Highway / Mindanao Ave
+];
+
+// ─────────────────────────────────────────────
+//  STATE
+// ─────────────────────────────────────────────
+
+let map, routeLayer, startMarker, endMarker;
+let startCoord = null; // [lon, lat]
+let endCoord   = null;
+let clickMode  = 'start';
+let debounceTimer = null;
+
+// ─────────────────────────────────────────────
+//  BOOT
+// ─────────────────────────────────────────────
+
+document.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  drawAvoidZones();
+  bindInputs();
+});
+
+// ─────────────────────────────────────────────
+//  MAP
+// ─────────────────────────────────────────────
+
+function initMap() {
+  map = L.map('map', { center: METRO_MANILA, zoom: DEFAULT_ZOOM });
+
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
+    maxZoom: 19,
+  }).addTo(map);
+
+  map.on('click', onMapClick);
+}
+
+function drawAvoidZones() {
+  const edsaLatLngs = EDSA_LINE.map(([lon, lat]) => [lat, lon]);
+  L.polyline(edsaLatLngs, { color: '#ff4444', weight: 5, opacity: 0.7, dashArray: '7 4' })
+    .addTo(map).bindTooltip('EDSA — Avoided', { sticky: true });
+
+  const cwLatLngs = COMMONWEALTH_LINE.map(([lon, lat]) => [lat, lon]);
+  L.polyline(cwLatLngs, { color: '#ffaa00', weight: 5, opacity: 0.7, dashArray: '7 4' })
+    .addTo(map).bindTooltip('Commonwealth Ave — Avoided', { sticky: true });
+}
+
+// ─────────────────────────────────────────────
+//  MAP CLICKS
+// ─────────────────────────────────────────────
+
+function onMapClick(e) {
+  const { lat, lng } = e.latlng;
+  if (clickMode === 'start') {
+    setStart(lat, lng); clickMode = 'end';
+  } else {
+    setEnd(lat, lng); clickMode = 'start';
+  }
+  updateClickBadge();
+}
+
+function setStart(lat, lng) {
+  startCoord = [lng, lat];
+  if (startMarker) map.removeLayer(startMarker);
+  startMarker = L.marker([lat, lng], { icon: pinIcon('#00e676') })
+    .addTo(map).bindPopup('Start').openPopup();
+  reverseGeocode(lat, lng, 'start-input');
+}
+
+function setEnd(lat, lng) {
+  endCoord = [lng, lat];
+  if (endMarker) map.removeLayer(endMarker);
+  endMarker = L.marker([lat, lng], { icon: pinIcon('#ff6d00') })
+    .addTo(map).bindPopup('Destination').openPopup();
+  reverseGeocode(lat, lng, 'end-input');
+}
+
+function pinIcon(color) {
+  return L.divIcon({
+    html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);"></div>`,
+    iconSize: [16, 16], iconAnchor: [8, 8], className: '',
+  });
+}
+
+function updateClickBadge() {
+  const badge = document.getElementById('click-mode-badge');
+  badge.textContent = clickMode === 'start' ? 'START' : 'END';
+  badge.className = `badge badge-${clickMode}`;
+}
+
+// ─────────────────────────────────────────────
+//  GEOCODING
+// ─────────────────────────────────────────────
+
+async function reverseGeocode(lat, lon, inputId) {
+  try {
+    const r = await fetch(`${NOMINATIM_REVERSE}?format=json&lat=${lat}&lon=${lon}&accept-language=en`);
+    const d = await r.json();
+    const label = d.display_name
+      ? d.display_name.split(',').slice(0, 2).join(', ')
+      : `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+    document.getElementById(inputId).value = label;
+  } catch (_) {}
+}
+
+function bindInputs() {
+  bindSearchInput('start-input', 'start-suggestions', (lat, lon) => {
+    setStart(lat, lon); clickMode = 'end'; updateClickBadge();
+  });
+  bindSearchInput('end-input', 'end-suggestions', (lat, lon) => {
+    setEnd(lat, lon); clickMode = 'start'; updateClickBadge();
+  });
+}
+
+function bindSearchInput(inputId, suggestionsId, onPick) {
+  const input = document.getElementById(inputId);
+  const box   = document.getElementById(suggestionsId);
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = input.value.trim();
+    if (q.length < 3) { box.innerHTML = ''; box.classList.remove('open'); return; }
+    debounceTimer = setTimeout(() => fetchSuggestions(q, box, onPick), 480);
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.contains(e.target) && !box.contains(e.target)) box.classList.remove('open');
+  });
+}
+
+async function fetchSuggestions(query, box, onPick) {
+  try {
+    const r = await fetch(
+      `${NOMINATIM_SEARCH}?format=json&q=${encodeURIComponent(query)}&countrycodes=PH&limit=5&accept-language=en`
+    );
+    const results = await r.json();
+
+    if (!results.length) {
+      box.innerHTML = '<div class="sug-item empty">No results found</div>';
+      box.classList.add('open');
+      return;
+    }
+
+    box.innerHTML = results.map((item, i) =>
+      `<div class="sug-item" data-i="${i}" data-lat="${item.lat}" data-lon="${item.lon}">${item.display_name}</div>`
+    ).join('');
+    box.classList.add('open');
+
+    box.querySelectorAll('.sug-item[data-lat]').forEach(el => {
+      el.addEventListener('click', () => {
+        onPick(parseFloat(el.dataset.lat), parseFloat(el.dataset.lon));
+        box.classList.remove('open');
+      });
+    });
+  } catch (_) {}
+}
+
+// ─────────────────────────────────────────────
+//  ROUTING — OSRM
+// ─────────────────────────────────────────────
+
+async function calculateRoute() {
+  if (!startCoord || !endCoord) {
+    toast('Set both a start point and destination first.', 'error');
+    return;
+  }
+
+  setLoading(true);
+
+  try {
+    // 1. Get direct route first
+    let routeData = await fetchOSRMRoute([startCoord, endCoord]);
+
+    // 2. Build avoidance buffers locally (browser only — never sent to any API)
+    const edsaBuf = turf.buffer(turf.lineString(EDSA_LINE),         0.08, { units: 'kilometers' });
+    const cwBuf   = turf.buffer(turf.lineString(COMMONWEALTH_LINE), 0.08, { units: 'kilometers' });
+
+    // 3. Detect if the route passes through avoided roads
+    const detours = findDetours(routeData.geometry.coordinates, edsaBuf, cwBuf);
+
+    // 4. If avoided roads found, re-route via bypass waypoints
+    if (detours.length > 0) {
+      routeData = await fetchOSRMRoute([startCoord, ...detours, endCoord]);
+    }
+
+    renderRoute(routeData, detours.length > 0);
+
+  } catch (err) {
+    toast('Routing failed: ' + err.message, 'error');
+    console.error('[MotoNav]', err);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function fetchOSRMRoute(waypoints) {
+  const coords = waypoints.map(([lon, lat]) => `${lon},${lat}`).join(';');
+  const url = `${OSRM_URL}/${coords}?steps=true&geometries=geojson&overview=full`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`OSRM error ${res.status}`);
+
+  const data = await res.json();
+  if (data.code !== 'Ok' || !data.routes?.length) throw new Error('No route found between these points.');
+
+  return data.routes[0];
+}
+
+// Find where route hits EDSA/Commonwealth and return bypass waypoints
+function findDetours(routeCoords, edsaBuf, cwBuf) {
+  const found = new Map();
+
+  for (let i = 0; i < routeCoords.length; i++) {
+    const [lon, lat] = routeCoords[i];
+    const pt = turf.point([lon, lat]);
+
+    if (!found.has('edsa') && turf.booleanPointInPolygon(pt, edsaBuf)) {
+      found.set('edsa', { bypass: nearestDetour(lon, lat, EDSA_DETOURS), pos: i });
+    }
+
+    if (!found.has('cw') && turf.booleanPointInPolygon(pt, cwBuf)) {
+      found.set('cw', { bypass: nearestDetour(lon, lat, CW_DETOURS), pos: i });
+    }
+
+    if (found.size === 2) break;
+  }
+
+  // Return bypass coords sorted by their position along the original route
+  return [...found.values()]
+    .sort((a, b) => a.pos - b.pos)
+    .map(d => d.bypass);
+}
+
+function nearestDetour(lon, lat, candidates) {
+  return candidates.reduce((best, c) => {
+    const d = Math.hypot(lon - c[0], lat - c[1]);
+    return d < best.d ? { c, d } : best;
+  }, { c: candidates[0], d: Infinity }).c;
+}
+
+// ─────────────────────────────────────────────
+//  RENDER
+// ─────────────────────────────────────────────
+
+function renderRoute(routeData, avoided) {
+  if (routeLayer) map.removeLayer(routeLayer);
+
+  // OSRM returns [lon, lat]; Leaflet needs [lat, lon]
+  const latLngs = routeData.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+
+  routeLayer = L.polyline(latLngs, { color: '#ff6d00', weight: 5, opacity: 0.92 }).addTo(map);
+  map.fitBounds(routeLayer.getBounds(), { padding: [50, 50] });
+
+  document.getElementById('distance').textContent = fmtDist(routeData.distance);
+  document.getElementById('duration').textContent = fmtTime(routeData.duration);
+  document.getElementById('avoid-notice').style.display = avoided ? '' : 'none';
+  document.getElementById('route-info').classList.remove('hidden');
+
+  const steps = routeData.legs.flatMap(leg => leg.steps);
+  document.getElementById('steps-list').innerHTML = steps.map(step => `
+    <li>
+      <span class="step-icon">${stepIcon(step.maneuver)}</span>
+      <span class="step-text">${stepText(step)}</span>
+      <span class="step-dist">${fmtDist(step.distance)}</span>
+    </li>
+  `).join('');
+  document.getElementById('directions').classList.remove('hidden');
+}
+
+function stepIcon(m) {
+  if (!m) return '↑';
+  if (m.type === 'depart') return '▶';
+  if (m.type === 'arrive') return '⚑';
+  if (m.type === 'roundabout' || m.type === 'rotary') return '⟳';
+  const mod = m.modifier || '';
+  if (mod === 'uturn')        return '↩';
+  if (mod === 'sharp left')   return '↰';
+  if (mod === 'sharp right')  return '↱';
+  if (mod === 'left')         return '←';
+  if (mod === 'right')        return '→';
+  if (mod === 'slight left')  return '↖';
+  if (mod === 'slight right') return '↗';
+  return '↑';
+}
+
+function stepText(step) {
+  const type = step.maneuver?.type || '';
+  const mod  = step.maneuver?.modifier || '';
+  const road = step.name ? `onto ${step.name}` : '';
+
+  if (type === 'depart') return `Start${step.name ? ' on ' + step.name : ''}`;
+  if (type === 'arrive') return 'Arrive at destination';
+  if (type === 'roundabout' || type === 'rotary') return `Enter roundabout${road ? ', then exit ' + road : ''}`;
+  if (type === 'exit roundabout' || type === 'exit rotary') return `Exit roundabout${road ? ' ' + road : ''}`;
+  if (mod) return `${mod.charAt(0).toUpperCase() + mod.slice(1).replace(/-/g, ' ')} ${road}`.trim();
+  return `Continue${road ? ' ' + road : ''}`;
+}
+
+// ─────────────────────────────────────────────
+//  CLEAR
+// ─────────────────────────────────────────────
+
+function clearAll() {
+  [routeLayer, startMarker, endMarker].forEach(l => { if (l) map.removeLayer(l); });
+  routeLayer = startMarker = endMarker = null;
+  startCoord = endCoord = null;
+  clickMode = 'start';
+  updateClickBadge();
+
+  document.getElementById('start-input').value = '';
+  document.getElementById('end-input').value   = '';
+  document.getElementById('route-info').classList.add('hidden');
+  document.getElementById('directions').classList.add('hidden');
+  map.setView(METRO_MANILA, DEFAULT_ZOOM);
+}
+
+// ─────────────────────────────────────────────
+//  HELPERS
+// ─────────────────────────────────────────────
+
+function setLoading(on) {
+  const btn  = document.getElementById('route-btn');
+  const text = document.getElementById('route-btn-text');
+  btn.disabled = on;
+  text.innerHTML = on ? '<span class="spinner"></span>&nbsp; Calculating...' : 'Get Moto Route';
+}
+
+let toastTimer = null;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast${type ? ' ' + type : ''}`;
+  el.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.add('hidden'), 4500);
+}
+
+// OSRM returns meters; Valhalla returned km — this handles meters
+function fmtDist(meters) {
+  return meters < 1000 ? `${Math.round(meters)} m` : `${(meters / 1000).toFixed(1)} km`;
+}
+
+function fmtTime(seconds) {
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins} min`;
+  return `${Math.floor(mins / 60)}h ${mins % 60}m`;
+}
