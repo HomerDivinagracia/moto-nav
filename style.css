@@ -458,11 +458,25 @@ body {
 
 .modal-btn:hover { background: #e65100; }
 
+.modal-btn-cancel {
+  background: #1e1e1e !important;
+  border: 1px solid #333;
+  margin-top: 0 !important;
+}
+
+.modal-btn-cancel:hover { background: #282828 !important; }
+
 .modal-note {
   font-size: 11px !important;
   color: #444 !important;
   text-align: center;
   margin: 0 !important;
+}
+
+.add-key-link {
+  color: #ff6d00;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 /* ── Toast ────────────────────────────────── */
@@ -546,11 +560,33 @@ body {
 
 .leaflet-control-attribution a { color: #666 !important; }
 
+/* ── Logo actions ─────────────────────────── */
+
+.logo-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#settings-btn {
+  background: none;
+  border: none;
+  color: #555;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 3px 7px;
+  border-radius: 6px;
+  transition: color 0.15s;
+  line-height: 1;
+}
+
+#settings-btn:hover { color: #ff6d00; }
+
 /* ── Sidebar Toggle ───────────────────────── */
 
 #sidebar-toggle {
   display: none;
-  margin-left: auto;
   background: none;
   border: 1px solid #2e2e2e;
   border-radius: 6px;

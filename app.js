@@ -6,6 +6,7 @@
 const OSRM_URL          = 'https://router.project-osrm.org/route/v1/driving';
 const NOMINATIM_SEARCH  = 'https://nominatim.openstreetmap.org/search';
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
+const MAPBOX_GEOCODE    = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 const METRO_BBOX        = '120.855,14.854,121.207,14.362'; // Metro Manila bounding box (W,N,E,S)
 
 const METRO_MANILA = [14.5995, 120.9842];
@@ -226,17 +227,37 @@ function bindSearchInput(inputId, suggestionsId, onPick) {
   });
 }
 
+function cleanQuery(q) {
+  return q.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 async function fetchSuggestions(query, box, onPick) {
   try {
+    const clean = cleanQuery(query);
+
+    // 1. Exact query with MM viewbox
     let results = await nominatimSearch(query);
 
-    // Fallback: append "Metro Manila" to bias toward local results
+    // 2. Strip parenthetical content — e.g. "Bilrey Construction (Edsa Office)" → "Bilrey Construction"
+    if (!results.length && clean !== query) {
+      results = await nominatimSearch(clean);
+    }
+
+    // 3. Append "Metro Manila" for context
     if (!results.length) {
-      results = await nominatimSearch(query + ' Metro Manila');
+      results = await nominatimSearch((clean || query) + ' Metro Manila');
+    }
+
+    // 4. Mapbox fallback — covers businesses not in OpenStreetMap
+    if (!results.length) {
+      results = await mapboxSearch(clean || query);
     }
 
     if (!results.length) {
-      box.innerHTML = '<div class="sug-item empty">No results found</div>';
+      const hint = getMapboxKey()
+        ? 'No results found — try a street address'
+        : 'No results — <span class="add-key-link" onclick="openKeyModal()">add a Mapbox key</span> for business search';
+      box.innerHTML = `<div class="sug-item empty">${hint}</div>`;
       box.classList.add('open');
       return;
     }
@@ -257,6 +278,61 @@ async function fetchSuggestions(query, box, onPick) {
     box.innerHTML = '<div class="sug-item empty">Search unavailable — check connection</div>';
     box.classList.add('open');
   }
+}
+
+async function mapboxSearch(query) {
+  const key = getMapboxKey();
+  if (!key) return [];
+  try {
+    const url = `${MAPBOX_GEOCODE}/${encodeURIComponent(query)}.json?` +
+      `access_token=${key}&country=PH&proximity=120.9842,14.5995&limit=7&language=en`;
+    const r = await fetch(url);
+    if (r.status === 401) {
+      localStorage.removeItem('motonav_mapbox_key');
+      toast('Mapbox key is invalid — please update it in Settings.', 'error');
+      return [];
+    }
+    if (!r.ok) return [];
+    const data = await r.json();
+    return (data.features || []).map(f => ({
+      lat: f.center[1],
+      lon: f.center[0],
+      display_name: f.place_name,
+    }));
+  } catch (_) {
+    return [];
+  }
+}
+
+function getMapboxKey() {
+  return localStorage.getItem('motonav_mapbox_key') || '';
+}
+
+function openKeyModal() {
+  document.getElementById('mapbox-key-input').value = getMapboxKey();
+  document.getElementById('key-modal').classList.add('open');
+  document.getElementById('mapbox-key-input').focus();
+}
+
+function closeKeyModal() {
+  document.getElementById('key-modal').classList.remove('open');
+}
+
+function saveMapboxKey() {
+  const key = document.getElementById('mapbox-key-input').value.trim();
+  if (!key) {
+    localStorage.removeItem('motonav_mapbox_key');
+    closeKeyModal();
+    toast('Mapbox key cleared.', '');
+    return;
+  }
+  if (!key.startsWith('pk.')) {
+    toast('Invalid key — Mapbox public tokens start with "pk."', 'error');
+    return;
+  }
+  localStorage.setItem('motonav_mapbox_key', key);
+  closeKeyModal();
+  toast('Mapbox key saved — business search enabled!', 'success');
 }
 
 async function nominatimSearch(query) {

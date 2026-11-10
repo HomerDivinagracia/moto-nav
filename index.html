@@ -18,7 +18,10 @@
         <div class="logo-top">
           <span class="logo-icon">&#127949;</span>
           <span class="logo-text">MotoNav</span>
-          <button id="sidebar-toggle" aria-label="Toggle panel">&#9662;</button>
+          <div class="logo-actions">
+            <button id="settings-btn" title="Business search settings" onclick="openKeyModal()">&#9881;</button>
+            <button id="sidebar-toggle" aria-label="Toggle panel">&#9662;</button>
+          </div>
         </div>
         <small>Skips EDSA &amp; Commonwealth Ave</small>
       </div>
@@ -109,6 +112,24 @@
 
   <!-- Toast -->
   <div id="toast" class="toast hidden"></div>
+
+  <!-- Mapbox key modal -->
+  <div id="key-modal" class="modal">
+    <div class="modal-box">
+      <div class="modal-icon">&#128270;</div>
+      <h2>Business Search</h2>
+      <p>Mapbox finds businesses &amp; landmarks that OpenStreetMap misses. Get a free token — no credit card needed.</p>
+      <ol>
+        <li>Sign up at <strong>mapbox.com</strong></li>
+        <li>Copy your <strong>Default public token</strong></li>
+        <li>Paste it below</li>
+      </ol>
+      <input type="text" id="mapbox-key-input" placeholder="pk.eyJ1IjoiLi4u..." autocomplete="off" spellcheck="false"/>
+      <button class="modal-btn" onclick="saveMapboxKey()">Save key</button>
+      <button class="modal-btn modal-btn-cancel" onclick="closeKeyModal()">Cancel</button>
+      <p class="modal-note">Stored only in your browser — never sent to any server.</p>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://unpkg.com/@turf/turf@6/turf.min.js"></script>
