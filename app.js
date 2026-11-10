@@ -92,8 +92,8 @@ document.addEventListener('DOMContentLoaded', () => {
 function initMap() {
   map = L.map('map', { center: METRO_MANILA, zoom: DEFAULT_ZOOM });
 
-  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
   }).addTo(map);
 
