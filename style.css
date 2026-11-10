@@ -133,6 +133,30 @@ body {
 
 .input-wrapper input::placeholder { color: #444; }
 
+#locate-btn {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: pointer;
+  padding: 2px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+#locate-btn:hover { color: #ff6d00; }
+
+#locate-btn.locating {
+  color: #ff6d00;
+  animation: locatePulse 1s ease infinite;
+}
+
+@keyframes locatePulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
 /* Autocomplete suggestions */
 .suggestions {
   display: none;

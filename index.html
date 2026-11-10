@@ -29,6 +29,15 @@
           <div class="input-wrapper">
             <span class="dot start-dot"></span>
             <input type="text" id="start-input" placeholder="Starting point..." autocomplete="off"/>
+            <button id="locate-btn" title="Use my current location" onclick="useMyLocation()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="4"/>
+                <line x1="12" y1="2" x2="12" y2="6"/>
+                <line x1="12" y1="18" x2="12" y2="22"/>
+                <line x1="2" y1="12" x2="6" y2="12"/>
+                <line x1="18" y1="12" x2="22" y2="12"/>
+              </svg>
+            </button>
           </div>
           <div id="start-suggestions" class="suggestions"></div>
         </div>

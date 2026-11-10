@@ -130,6 +130,43 @@ function setEnd(lat, lng) {
   reverseGeocode(lat, lng, 'end-input');
 }
 
+function useMyLocation() {
+  if (!navigator.geolocation) {
+    toast('Geolocation is not supported by this browser.', 'error');
+    return;
+  }
+
+  const btn   = document.getElementById('locate-btn');
+  const input = document.getElementById('start-input');
+
+  btn.classList.add('locating');
+  input.value    = 'Getting location…';
+  input.disabled = true;
+
+  navigator.geolocation.getCurrentPosition(
+    ({ coords }) => {
+      btn.classList.remove('locating');
+      input.disabled = false;
+      setStart(coords.latitude, coords.longitude);
+      clickMode = 'end';
+      updateClickBadge();
+      map.setView([coords.latitude, coords.longitude], 15);
+    },
+    (err) => {
+      btn.classList.remove('locating');
+      input.disabled = false;
+      input.value = '';
+      const msgs = {
+        1: 'Location access denied — enable it in your browser settings.',
+        2: 'Location unavailable. Try again.',
+        3: 'Location request timed out.',
+      };
+      toast(msgs[err.code] || 'Could not get location.', 'error');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 }
+  );
+}
+
 function pinIcon(color) {
   return L.divIcon({
     html: `<div style="background:${color};width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,.55);"></div>`,
