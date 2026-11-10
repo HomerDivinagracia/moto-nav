@@ -6,6 +6,7 @@
 const OSRM_URL          = 'https://router.project-osrm.org/route/v1/driving';
 const NOMINATIM_SEARCH  = 'https://nominatim.openstreetmap.org/search';
 const NOMINATIM_REVERSE = 'https://nominatim.openstreetmap.org/reverse';
+const METRO_BBOX        = '120.855,14.854,121.207,14.362'; // Metro Manila bounding box (W,N,E,S)
 
 const METRO_MANILA = [14.5995, 120.9842];
 const DEFAULT_ZOOM = 12;
@@ -183,10 +184,12 @@ function bindSearchInput(inputId, suggestionsId, onPick) {
 
 async function fetchSuggestions(query, box, onPick) {
   try {
-    const r = await fetch(
-      `${NOMINATIM_SEARCH}?format=json&q=${encodeURIComponent(query)}&countrycodes=PH&limit=5&accept-language=en`
-    );
-    const results = await r.json();
+    let results = await nominatimSearch(query);
+
+    // Fallback: append "Metro Manila" to bias toward local results
+    if (!results.length) {
+      results = await nominatimSearch(query + ' Metro Manila');
+    }
 
     if (!results.length) {
       box.innerHTML = '<div class="sug-item empty">No results found</div>';
@@ -194,9 +197,10 @@ async function fetchSuggestions(query, box, onPick) {
       return;
     }
 
-    box.innerHTML = results.map((item, i) =>
-      `<div class="sug-item" data-i="${i}" data-lat="${item.lat}" data-lon="${item.lon}">${item.display_name}</div>`
-    ).join('');
+    box.innerHTML = results.map((item, i) => {
+      const label = fmtSuggestion(item.display_name);
+      return `<div class="sug-item" data-i="${i}" data-lat="${item.lat}" data-lon="${item.lon}" title="${item.display_name}">${label}</div>`;
+    }).join('');
     box.classList.add('open');
 
     box.querySelectorAll('.sug-item[data-lat]').forEach(el => {
@@ -205,7 +209,30 @@ async function fetchSuggestions(query, box, onPick) {
         box.classList.remove('open');
       });
     });
-  } catch (_) {}
+  } catch (_) {
+    box.innerHTML = '<div class="sug-item empty">Search unavailable — check connection</div>';
+    box.classList.add('open');
+  }
+}
+
+async function nominatimSearch(query) {
+  const params = new URLSearchParams({
+    format: 'json',
+    q: query,
+    countrycodes: 'PH',
+    limit: '7',
+    'accept-language': 'en',
+    viewbox: METRO_BBOX,
+    bounded: '0',
+    addressdetails: '1',
+  });
+  const r = await fetch(`${NOMINATIM_SEARCH}?${params}`);
+  if (!r.ok) throw new Error(`Nominatim ${r.status}`);
+  return r.json();
+}
+
+function fmtSuggestion(displayName) {
+  return displayName.split(',').slice(0, 3).join(',').trim();
 }
 
 // ─────────────────────────────────────────────
