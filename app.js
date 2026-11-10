@@ -72,6 +72,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initMap();
   drawAvoidZones();
   bindInputs();
+  bindSidebarToggle();
 });
 
 // ─────────────────────────────────────────────
@@ -164,6 +165,12 @@ function bindInputs() {
   bindSearchInput('end-input', 'end-suggestions', (lat, lon) => {
     setEnd(lat, lon); clickMode = 'start'; updateClickBadge();
   });
+}
+
+function bindSidebarToggle() {
+  const btn     = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  btn.addEventListener('click', () => sidebar.classList.toggle('collapsed'));
 }
 
 function bindSearchInput(inputId, suggestionsId, onPick) {
@@ -324,6 +331,11 @@ function nearestDetour(lon, lat, candidates) {
 
 function renderRoute(routeData, avoided) {
   if (routeLayer) map.removeLayer(routeLayer);
+
+  // On mobile: collapse the panel so the route is visible right away
+  if (window.innerWidth <= 640) {
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
 
   // OSRM returns [lon, lat]; Leaflet needs [lat, lon]
   const latLngs = routeData.geometry.coordinates.map(([lon, lat]) => [lat, lon]);

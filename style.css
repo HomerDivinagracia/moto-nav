@@ -521,3 +521,77 @@ body {
 }
 
 .leaflet-control-attribution a { color: #666 !important; }
+
+/* ── Sidebar Toggle ───────────────────────── */
+
+#sidebar-toggle {
+  display: none;
+  margin-left: auto;
+  background: none;
+  border: 1px solid #2e2e2e;
+  border-radius: 6px;
+  color: #888;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: color 0.15s, transform 0.25s;
+  flex-shrink: 0;
+}
+
+#sidebar-toggle:hover { color: #ccc; }
+#sidebar.collapsed #sidebar-toggle { transform: rotate(180deg); }
+
+/* ── Responsive — mobile ─────────────────── */
+
+@media (max-width: 640px) {
+  #app {
+    flex-direction: column;
+  }
+
+  #sidebar {
+    width: 100%;
+    min-width: unset;
+    max-height: 52vh;
+    flex-shrink: 0;
+    border-right: none;
+    border-bottom: 1px solid #252525;
+  }
+
+  #sidebar.collapsed {
+    max-height: none;
+    overflow: visible;
+  }
+
+  #sidebar.collapsed > *:not(#logo) {
+    display: none !important;
+  }
+
+  #map {
+    flex: 1;
+    min-height: 0;
+  }
+
+  #sidebar-toggle {
+    display: block;
+  }
+
+  /* Larger tap targets */
+  .input-wrapper {
+    padding: 12px;
+  }
+
+  #route-btn {
+    padding: 13px;
+    font-size: 15px;
+  }
+
+  #clear-btn {
+    padding: 11px;
+  }
+
+  .sug-item {
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+}
